@@ -1,0 +1,130 @@
+---
+title: "Machine Learning Final Project"
+author: "Michael McDonnell"
+date: "March 7, 2016"
+output: html_document
+---
+## Objective
+We are provided with a data set that has various measurements from fitness
+monitoring devices, e.g. fitbit. We would like to quantify 'how well' an exercise
+is done based on readings from specific measurements.
+```{r,cache=TRUE}
+trainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+quizURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(trainURL, na.strings=c("", "#DIV/0!","NA"))
+quiz <- read.csv(quizURL, na.strings=c("", "#DIV/0!","NA"))
+features <- names(training)
+```
+
+The quiz data set is the data that our code will be evaluated on for 
+Coursera's segment quiz. The training data set will be subsetted into the
+training and testing sets.
+
+```{r, results="hide", warning=FALSE, message=FALSE}
+library(dplyr)
+library(dplyr)
+library(caret)
+library(randomForest)
+set.seed(123456)
+```
+
+At this point, taking a look at count_NA2 shows that there at 67 out of 160 features
+which have exactly 19216 missing observations, that is, they have 97.9% missing
+observations. This is entirely too many missing observations to do any imputation.
+We will then remove these 'sparse enough' features.
+
+```{r,results="hide"}
+majority_NA <- c()
+feature_NAs <- c()
+#a for loop to take a measure on how many NAs per each feature
+for(i in (1:length(features))){
+        # If more than 75% of the observations for a feature are NA, then we 
+        # remove that feature entirely.
+        threshold <- ceiling(dim(training))[1] * 0.75
+        value <- sum(is.na(select(training, i)))
+        feature_NAs[i] <- value
+        ifelse(value > threshold, majority_NA[i] <- TRUE, majority_NA[i] <- FALSE)
+}
+```
+
+We then create a data frame of all the feature names that satisfied the acceptable
+NA count threshold. We then subset the training and testing data frames on this
+feature name list.
+
+```{r, results="hide"}
+#Create dataframe aligning feature names with majority_NA value
+x <- data.frame(features, majority_NA)
+#Removing all observations of x so that only <threshold NA feature names remain
+x <- filter(x, majority_NA==FALSE)
+goodnames <- as.character(x$features)
+goodnames <- goodnames[2:length(goodnames)]
+```
+
+Double checking that both of the data frames having been equally subset for 
+creating model and subsequent predictions.
+
+```{r, results="hide"}
+#testing to see if training and testing do (they should) have matching features
+all.equal(names(training), names(quiz))
+#investigate which string is the mismatch
+names(training) == names(quiz)
+#Everything matches except for the last feature name:
+#Training: classe
+#Testing: problem_id
+#This is alright since classe is what we're trying to predict, and problem_id is 
+#something to be used by Coursera for the quiz results from this assignment.
+training_adj <- training[,goodnames]
+set.seed(654321)
+inTrain <- createDataPartition(training_adj$classe, p=0.75)[[1]]
+training2 <- training_adj[inTrain,]
+testing2 <- training_adj[-inTrain,]
+
+#We do the same alterations to our quiz data set
+goodnames_quiz <- goodnames[1:length(goodnames)-1]
+goodnames_quiz <- c(goodnames_quiz, "problem_id")
+quiz_testing <- quiz[,goodnames_quiz]
+```
+
+Now we can begin training models. We start with a random forest model trained
+with the caret package.
+
+This model ultimately is the one we will use, since its confusion matrix has
+an accuracy rate of 0.9998. This model takes considerably longer than training
+with the randomForest() function, even though it's the same thing just wrapped
+in the caret package.
+
+We will also train a gradient boosted model, which finished with an accuracy of
+0.9969. This model took approximately 40 minutes to train.
+
+
+These two models were the fastest of the bunch. The rpart model finished almost
+instantaneously, and the randomForest() model took 45 seconds. These models
+finished with accuracies 0.8664  0.9994, respectively.
+
+The randomForest() model has the best accuracy for the time spent training, and would
+most likely be the best option in practice. The recrusive partitioning and regression
+trees model definitely suffered in accuracy for the lightning quick computational time.
+
+Similar models were originally trained wrapped under the caret package; however,
+it took up to 40 minutes to train a model under caret when calling the function
+directly took less than a minute. The former is shown below.
+
+```{r, cache=TRUE, results="hide", warning=FALSE, message=FALSE}
+library(rpart)
+library(randomForest)
+#Recursive Partitioning and Regression Trees
+#Instantaneous
+model <- rpart(classe ~ ., data=training2)
+predictions <- predict(model, testing2, type="class")
+confusionMatrix(predictions, testing2$classe)
+
+
+#Random Forest model not using caret package for speed
+start_time2 <- Sys.time()
+model2 <- randomForest(classe ~ ., data=training2)
+end_time2 <- Sys.time()
+prediction2 <- predict(model2, testing2)
+confusionMatrix(prediction2, testing2$classe)
+model2_time <- end_time2 - start_time2
+print(model2_time)
+```
