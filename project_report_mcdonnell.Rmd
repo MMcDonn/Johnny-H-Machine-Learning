@@ -113,18 +113,35 @@ directly took less than a minute. The former is shown below.
 library(rpart)
 library(randomForest)
 #Recursive Partitioning and Regression Trees
-#Instantaneous
-model <- rpart(classe ~ ., data=training2)
-predictions <- predict(model, testing2, type="class")
-confusionMatrix(predictions, testing2$classe)
+RPRT_model <- rpart(classe ~ ., data=training2)
+RPRT_start_time <- Sys.time()
+RPRT_predictions <- predict(RPRT_model, testing2, type="class")
+RPRT_end_time <- Sys.time()
+RPRT_confusion <- confusionMatrix(RPRT_predictions, testing2$classe)
+RPRT_time <- RPRT_end_time - RPRT_start_time
 
 
 #Random Forest model not using caret package for speed
-start_time2 <- Sys.time()
-model2 <- randomForest(classe ~ ., data=training2)
-end_time2 <- Sys.time()
-prediction2 <- predict(model2, testing2)
-confusionMatrix(prediction2, testing2$classe)
-model2_time <- end_time2 - start_time2
-print(model2_time)
+RF_start_time <- Sys.time()
+RF_model <- randomForest(classe ~ ., data=training2)
+RF_end_time <- Sys.time()
+RF_prediction <- predict(RF_model, testing2)
+RF_confusion <- confusionMatrix(RF_prediction, testing2$classe)
+RF_time <- RF_end_time - RF_start_time
 ```
+
+Results for the Recursive Partitioning and Regression Tree model
+```{r, echo=FALSE, results=TRUE}
+print(RPRT_confusion)
+print("Execution time:")
+print(RPRT_time)
+```
+
+Results for the Random Forest Model
+```{r, echo=FALSE, results=TRUE}
+print(RF_confusion)
+print("Execution time:")
+print(RF_time)
+```
+We can see that the random forest model performs much better than the rpart model
+with a relatively low training time.
